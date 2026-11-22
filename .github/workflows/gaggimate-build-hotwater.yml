@@ -9,7 +9,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: v1.9.0
+          ref: build
           fetch-depth: 0
           submodules: recursive
       - uses: actions/setup-python@v5
