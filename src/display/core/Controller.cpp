@@ -1088,13 +1088,27 @@ void Controller::updateControl() {
     if (targetTemp > .0f) {
         targetTemp = targetTemp + static_cast<float>(settings.getTemperatureOffset());
     }
-
     bool altRelayActive = false;
-    if (active && proc->isAltRelayActive()) {
-        if (proc->getType() == MODE_GRIND && settings.getAltRelayFunction() == ALT_RELAY_GRIND) {
+
+    if (active && proc != nullptr) {
+        if (proc->getType() == MODE_WATER) {
+            // Heisswasser: separates Magnetventil oeffnen
+            altRelayActive = true;
+        }
+        else if (proc->getType() == MODE_GRIND &&
+                 settings.getAltRelayFunction() == ALT_RELAY_GRIND &&
+                 proc->isAltRelayActive()) {
+            // Bisherige Grind-Funktion beibehalten
             altRelayActive = true;
         }
     }
+
+    //bool altRelayActive = false;
+    //if (active && proc->isAltRelayActive()) {
+    //    if (proc->getType() == MODE_GRIND && settings.getAltRelayFunction() == ALT_RELAY_GRIND) {
+    //        altRelayActive = true;
+    //   }
+    //}
 
     // Build the per-component commands, then deliver boiler + pump + valve + alt
     // together in a single batched frame so the controller applies them as one
