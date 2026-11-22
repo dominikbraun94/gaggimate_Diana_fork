@@ -1,0 +1,60 @@
+name: Build GaggiMate Display - Hot Water
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  display:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v1.10.0
+          fetch-depth: 0
+          submodules: recursive
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: PlatformIO installieren
+        run: python -m pip install --upgrade platformio
+      - name: GPIO47 fuer Heisswasser aktivieren
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('src/display/core/Controller.cpp')
+          s = p.read_text()
+          start_text = '    bool altRelayActive = false;'
+          end_text = '    // Build the per-component commands'
+          if s.count(start_text) != 1 or s.count(end_text) != 1:
+              raise SystemExit('Unerwarteter Quellcode: Patch nicht angewendet')
+          a = s.index(start_text)
+          b = s.index(end_text, a)
+          old = s[a:b]
+          if 'MODE_GRIND' not in old or 'isAltRelayActive()' not in old:
+              raise SystemExit('Abweichender Relaiscode: Patch nicht angewendet')
+          new = '''    bool altRelayActive = false;
+              if (active && proc != nullptr) {
+                  if (proc->getType() == MODE_WATER) {
+                      altRelayActive = true; // Heisswasser-Magnetventil an GPIO47
+                  } else if (proc->getType() == MODE_GRIND &&
+                             settings.getAltRelayFunction() == ALT_RELAY_GRIND &&
+                             proc->isAltRelayActive()) {
+                      altRelayActive = true; // Bestehende Grind-Funktion
+                  }
+              }
+          '''
+          p.write_text(s[:a] + new + s[b:])
+          print('GPIO47-Patch eingesetzt')
+          PY
+      - name: Weboberflaeche kompilieren
+        run: ./scripts/build_webui.sh
+      - name: Display-Firmware kompilieren
+        run: pio run -e display
+      - uses: actions/upload-artifact@v4
+        with:
+          name: display-hotwater-gpio47-v1.10.0
+          path: .pio/build/display/firmware.bin
+          if-no-files-found: error
